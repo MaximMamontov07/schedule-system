@@ -19,10 +19,10 @@ function checkAuth(request) {
 export async function GET() {
   try {
     const db = await getDb();
-    const teachers = await db.all('SELECT * FROM teachers ORDER BY name');
-    return NextResponse.json(teachers);
+    const result = await db.query('SELECT * FROM teachers ORDER BY name');
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка GET teachers:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
@@ -36,23 +36,24 @@ export async function POST(request) {
     }
 
     const db = await getDb();
-    const { name } = await request.json();
+    const body = await request.json();
+    const { name } = body;
 
     if (!name || name.trim() === '') {
       return NextResponse.json({ error: 'Имя преподавателя обязательно' }, { status: 400 });
     }
 
     try {
-      await db.run('INSERT INTO teachers (name) VALUES (?)', [name.trim()]);
+      await db.query('INSERT INTO teachers (name) VALUES ($1)', [name.trim()]);
       return NextResponse.json({ success: true });
     } catch (error) {
-      if (error.message.includes('UNIQUE')) {
+      if (error.code === '23505') {
         return NextResponse.json({ error: 'Такой преподаватель уже существует' }, { status: 400 });
       }
       throw error;
     }
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка POST teachers:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
@@ -73,10 +74,10 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'ID преподавателя обязателен' }, { status: 400 });
     }
 
-    await db.run('DELETE FROM teachers WHERE id = ?', [id]);
+    await db.query('DELETE FROM teachers WHERE id = $1', [parseInt(id)]);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка DELETE teachers:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

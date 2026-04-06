@@ -19,10 +19,10 @@ function checkAuth(request) {
 export async function GET() {
   try {
     const db = await getDb();
-    const groups = await db.all('SELECT * FROM groups ORDER BY name');
-    return NextResponse.json(groups);
+    const result = await db.query('SELECT * FROM groups ORDER BY name');
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка GET groups:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
@@ -36,23 +36,24 @@ export async function POST(request) {
     }
 
     const db = await getDb();
-    const { name } = await request.json();
+    const body = await request.json();
+    const { name } = body;
 
     if (!name || name.trim() === '') {
       return NextResponse.json({ error: 'Название группы обязательно' }, { status: 400 });
     }
 
     try {
-      await db.run('INSERT INTO groups (name) VALUES (?)', [name.trim()]);
+      await db.query('INSERT INTO groups (name) VALUES ($1)', [name.trim()]);
       return NextResponse.json({ success: true });
     } catch (error) {
-      if (error.message.includes('UNIQUE')) {
+      if (error.code === '23505') { // PostgreSQL unique violation
         return NextResponse.json({ error: 'Такая группа уже существует' }, { status: 400 });
       }
       throw error;
     }
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка POST groups:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
@@ -73,10 +74,10 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'ID группы обязателен' }, { status: 400 });
     }
 
-    await db.run('DELETE FROM groups WHERE id = ?', [id]);
+    await db.query('DELETE FROM groups WHERE id = $1', [parseInt(id)]);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка DELETE groups:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
