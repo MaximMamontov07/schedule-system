@@ -7,7 +7,7 @@ export async function POST(request) {
     const { username, password } = await request.json();
     
     // Простая проверка логина и пароля
-    if (username === 'admin' && password === '1234') {
+    if (username === 'admin' && password === 'Maxim2007123') {
       // Простой токен
       const token = Buffer.from(`admin:${Date.now()}`).toString('base64');
       
