@@ -36,17 +36,17 @@ export async function GET(request) {
     let params = [];
 
     if (groupId) {
-      query += ' WHERE s.group_id = ?';
-      params.push(groupId);
+      query += ' WHERE s.group_id = $1';
+      params.push(parseInt(groupId));
     }
 
     query += ' ORDER BY s.day_of_week, s.pair_number';
     
-    const schedule = await db.all(query, params);
+    const result = await db.query(query, params);
     
-    return NextResponse.json(schedule);
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка GET:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
@@ -60,29 +60,68 @@ export async function POST(request) {
     }
 
     const db = await getDb();
-    const { group_id, teacher_id, subject_id, pair_number, day_of_week } = await request.json();
+    const body = await request.json();
+    
+    const { group_id, teacher_id, subject_id, pair_number, day_of_week } = body;
 
+    // Валидация
     if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
-    if (pair_number < 1 || pair_number > 6) {
+    const pairNum = parseInt(pair_number);
+    const dayNum = parseInt(day_of_week);
+
+    if (pairNum < 1 || pairNum > 6) {
       return NextResponse.json({ error: 'Номер пары должен быть от 1 до 6' }, { status: 400 });
     }
 
-    if (day_of_week < 1 || day_of_week > 6) {
+    if (dayNum < 1 || dayNum > 6) {
       return NextResponse.json({ error: 'День недели должен быть от 1 до 6' }, { status: 400 });
     }
 
-    await db.run(
-      `INSERT INTO schedule (group_id, teacher_id, subject_id, pair_number, day_of_week) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [group_id, teacher_id, subject_id, pair_number, day_of_week]
-    );
+    const query = `
+      INSERT INTO schedule (group_id, teacher_id, subject_id, pair_number, day_of_week) 
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+    `;
+    
+    const result = await db.query(query, [
+      parseInt(group_id), 
+      parseInt(teacher_id), 
+      parseInt(subject_id), 
+      pairNum, 
+      dayNum
+    ]);
 
+    return NextResponse.json({ success: true, id: result.rows[0].id });
+  } catch (error) {
+    console.error('Ошибка POST:', error);
+    return NextResponse.json({ error: 'Ошибка сервера: ' + error.message }, { status: 500 });
+  }
+}
+
+// DELETE - удаление занятия
+export async function DELETE(request) {
+  try {
+    const user = checkAuth(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Доступ запрещен' }, { status: 403 });
+    }
+
+    const db = await getDb();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID занятия обязателен' }, { status: 400 });
+    }
+
+    await db.query('DELETE FROM schedule WHERE id = $1', [parseInt(id)]);
+    
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Ошибка:', error);
+    console.error('Ошибка DELETE:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
